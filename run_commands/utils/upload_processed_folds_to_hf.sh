@@ -8,6 +8,9 @@ REPO_ID="${1:-${HF_DATASET_REPO:-}}"
 REPO_NAME="${HF_DATASET_REPO_NAME:-eyebench-processed-folds}"
 NUM_WORKERS="${HF_UPLOAD_NUM_WORKERS:-8}"
 DRY_RUN="${DRY_RUN:-0}"
+STAGING_DIR="${HF_UPLOAD_STAGING_DIR:-${ROOT_DIR}/../eyebench_processed_folds_hf_stage}"
+REBUILD_STAGING="${HF_REBUILD_STAGING:-0}"
+KEEP_STAGING="${HF_KEEP_STAGING:-1}"
 
 if ! command -v hf >/dev/null 2>&1; then
   echo "hf CLI is not installed. Install with: pip install -U 'huggingface_hub[cli,hf_xet]'" >&2
@@ -50,9 +53,64 @@ if [[ "$missing" -ne 0 ]]; then
   exit 1
 fi
 
-CARD_DIR="${TMPDIR:-/tmp}/eyebench_processed_folds_hf_card"
-rm -rf "$CARD_DIR"
-mkdir -p "$CARD_DIR"
+MANIFEST_FILE_COUNT="$(find data -type f \( -path '*/processed/*' -o -path '*/folds/*' -o -path '*/folds_metadata/*' \) ! -name '.DS_Store' -print | wc -l | tr -d ' ')"
+
+echo "Target HF dataset repo: $REPO_ID"
+echo "Upload size estimate:"
+du -ch data/*/processed data/*/folds data/*/folds_metadata 2>/dev/null | tail -n 1
+echo "Manifest file count: $MANIFEST_FILE_COUNT"
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "DRY_RUN=1, not creating repo or uploading."
+  exit 0
+fi
+
+if [[ "$REBUILD_STAGING" == "1" || ! -d "$STAGING_DIR/data" ]]; then
+  rm -rf "$STAGING_DIR"
+  mkdir -p "$STAGING_DIR"
+  python - "$ROOT_DIR" "$STAGING_DIR" <<'PYSTAGE'
+import os
+import shutil
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+staging = Path(sys.argv[2])
+datasets = ["CopCo", "IITBHGC", "MECOL2", "MECOL2W1", "MECOL2W2", "OneStop", "PoTeC", "SBSAT"]
+subdirs = ["processed", "folds", "folds_metadata"]
+linked = 0
+copied = 0
+
+for dataset in datasets:
+    for subdir in subdirs:
+        src_root = root / "data" / dataset / subdir
+        dst_root = staging / "data" / dataset / subdir
+        for src in src_root.rglob("*"):
+            rel = src.relative_to(src_root)
+            dst = dst_root / rel
+            if src.is_dir():
+                dst.mkdir(parents=True, exist_ok=True)
+                continue
+            if src.name == ".DS_Store":
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.exists():
+                dst.unlink()
+            try:
+                os.link(src, dst)
+                linked += 1
+            except OSError:
+                shutil.copy2(src, dst)
+                copied += 1
+
+print(f"Prepared staging directory: {staging}")
+print(f"Hardlinked files: {linked}")
+print(f"Copied files: {copied}")
+PYSTAGE
+else
+  echo "Reusing existing staging directory: $STAGING_DIR"
+  echo "Set HF_REBUILD_STAGING=1 to rebuild it."
+fi
 
 {
   echo "# EyeBench processed folds"
@@ -65,7 +123,7 @@ mkdir -p "$CARD_DIR"
   echo "- data/*/folds/"
   echo "- data/*/folds_metadata/"
   echo
-  echo "Excluded paths: raw downloads, precomputed intermediate files, feature caches, model outputs, logs, and sweep outputs."
+  echo "Excluded paths: raw downloads, precomputed intermediate files, feature caches, model outputs, logs, sweep outputs, and .DS_Store files."
   echo
   echo "Cloud download example:"
   echo
@@ -74,23 +132,13 @@ mkdir -p "$CARD_DIR"
   echo "hf auth login"
   printf "hf download %s --repo-type dataset --local-dir . \\\n  --include 'data/*/processed/**' \\\n  --include 'data/*/folds/**' \\\n  --include 'data/*/folds_metadata/**'\n" "$REPO_ID"
   echo '```'
-} > "$CARD_DIR/README.md"
+} > "$STAGING_DIR/README.md"
 
-du -sh data/*/processed data/*/folds data/*/folds_metadata 2>/dev/null | sort -k2 > "$CARD_DIR/manifest_sizes.txt"
+du -sh data/*/processed data/*/folds data/*/folds_metadata 2>/dev/null | sort -k2 > "$STAGING_DIR/manifest_sizes.txt"
 find data -type f \
   \( -path '*/processed/*' -o -path '*/folds/*' -o -path '*/folds_metadata/*' \) \
-  -print | sort > "$CARD_DIR/manifest_files.txt"
-
-echo "Target HF dataset repo: $REPO_ID"
-echo "Upload size estimate:"
-du -ch data/*/processed data/*/folds data/*/folds_metadata 2>/dev/null | tail -n 1
-
-echo "Manifest file count: $(wc -l < "$CARD_DIR/manifest_files.txt" | tr -d ' ')"
-
-if [[ "$DRY_RUN" == "1" ]]; then
-  echo "DRY_RUN=1, not creating repo or uploading."
-  exit 0
-fi
+  ! -name '.DS_Store' \
+  -print | sort > "$STAGING_DIR/manifest_files.txt"
 
 if hf repos create --help >/dev/null 2>&1; then
   hf repos create "$REPO_ID" --type dataset --private --exist-ok
@@ -98,25 +146,11 @@ else
   hf repo create "$REPO_ID" --repo-type dataset --private --exist-ok
 fi
 
-hf upload "$REPO_ID" "$CARD_DIR/README.md" README.md \
-  --repo-type dataset \
-  --commit-message "Add processed-folds dataset card"
-
-hf upload "$REPO_ID" "$CARD_DIR/manifest_sizes.txt" manifest_sizes.txt \
-  --repo-type dataset \
-  --commit-message "Add processed-folds size manifest"
-
-hf upload "$REPO_ID" "$CARD_DIR/manifest_files.txt" manifest_files.txt \
-  --repo-type dataset \
-  --commit-message "Add processed-folds file manifest"
-
-hf upload-large-folder "$REPO_ID" . \
+hf upload-large-folder "$REPO_ID" "$STAGING_DIR" \
   --repo-type dataset \
   --num-workers "$NUM_WORKERS" \
-  --include 'data/*/processed/**' \
-  --include 'data/*/folds/**' \
-  --include 'data/*/folds_metadata/**' \
-  --exclude 'data/*/downloads/**' \
-  --exclude 'data/*/precomputed_events/**' \
-  --exclude 'data/*/precomputed_reading_measures/**' \
-  --exclude 'data/cache/**'
+  --exclude '**/.DS_Store'
+
+if [[ "$KEEP_STAGING" != "1" ]]; then
+  rm -rf "$STAGING_DIR"
+fi
