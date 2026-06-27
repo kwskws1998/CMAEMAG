@@ -115,7 +115,11 @@ class CMAEMAGEyeModel(MAGModel):
         supervised_loss: torch.Tensor,
         reconstruction_loss: torch.Tensor,
     ) -> None:
-        stage = 'train' if self.training else 'eval'
+        log_context = self._cmae_log_context()
+        if log_context is None:
+            return
+
+        stage, add_dataloader_idx = log_context
         self.log(
             name=f'loss/supervised_{stage}',
             value=supervised_loss,
@@ -123,7 +127,7 @@ class CMAEMAGEyeModel(MAGModel):
             on_epoch=True,
             on_step=False,
             batch_size=self.batch_size,
-            add_dataloader_idx=False,
+            add_dataloader_idx=add_dataloader_idx,
             sync_dist=True,
         )
         self.log(
@@ -133,6 +137,21 @@ class CMAEMAGEyeModel(MAGModel):
             on_epoch=True,
             on_step=False,
             batch_size=self.batch_size,
-            add_dataloader_idx=False,
+            add_dataloader_idx=add_dataloader_idx,
             sync_dist=True,
         )
+
+    def _cmae_log_context(self) -> tuple[str, bool] | None:
+        if self.training:
+            return 'train', False
+
+        try:
+            trainer = self.trainer
+        except RuntimeError:
+            return None
+
+        if trainer.validating:
+            return 'val', True
+        if trainer.testing:
+            return 'test', True
+        return None

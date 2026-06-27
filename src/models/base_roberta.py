@@ -50,7 +50,7 @@ class BaseMultiModalRoberta(BaseModel):
         gaze_positions,
         eye_token_type_ids=None,
         **kwargs,
-    ) -> torch.Tensor:
+    ) -> object:
         """
         Forward pass of the model.
 
@@ -63,7 +63,7 @@ class BaseMultiModalRoberta(BaseModel):
             eye_token_type_ids (torch.Tensor, optional): Eye token type IDs. Defaults to None.
 
         Returns:
-            torch.Tensor: Model output.
+            object: Model output.
         """
         return self.model(
             input_ids=input_ids,
