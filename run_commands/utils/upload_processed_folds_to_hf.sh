@@ -13,7 +13,7 @@ REBUILD_STAGING="${HF_REBUILD_STAGING:-0}"
 KEEP_STAGING="${HF_KEEP_STAGING:-1}"
 
 if ! command -v hf >/dev/null 2>&1; then
-  echo "hf CLI is not installed. Install with: pip install -U 'huggingface_hub[cli,hf_xet]'" >&2
+  echo "hf CLI is not installed. Install with: pip install -U 'huggingface_hub[hf_xet]<1.0,>=0.24.0'" >&2
   exit 1
 fi
 
@@ -128,9 +128,9 @@ fi
   echo "Cloud download example:"
   echo
   echo '```bash'
-  echo "pip install -U 'huggingface_hub[cli,hf_xet]'"
+  echo "pip install -U 'huggingface_hub[hf_xet]<1.0,>=0.24.0'"
   echo "hf auth login"
-  printf "hf download %s --repo-type dataset --local-dir . \\\n  --include 'data/*/processed/**' \\\n  --include 'data/*/folds/**' \\\n  --include 'data/*/folds_metadata/**'\n" "$REPO_ID"
+  printf "hf download %s --repo-type dataset --local-dir . \\\n  --include 'data/*/processed/*' \\\n  --include 'data/*/folds/fold_*/*' \\\n  --include 'data/*/folds_metadata/*/*'\n" "$REPO_ID"
   echo '```'
 } > "$STAGING_DIR/README.md"
 

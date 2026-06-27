@@ -115,10 +115,40 @@ EyeBench evaluates models under **three complementary generalization regimes**:
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/EyeBench/eyebench.git
-cd eyebench
+git clone https://github.com/kwskws1998/CMAEMAG.git
+cd CMAEMAG
 mamba env create -f environment.yml
 conda activate eyebench
+
+python -m pip install -U \
+  "huggingface_hub[hf_xet]<1.0,>=0.24.0" \
+  "fsspec[http]<=2024.12.0,>=2023.1.0" \
+  "dill<0.3.9,>=0.3.0" \
+  "multiprocess<0.70.17"
+```
+
+Do not install `huggingface_hub[cli,hf_xet]` without the `<1.0` bound in this
+environment. Newer `huggingface_hub` 1.x releases are incompatible with the
+repo-pinned `transformers==4.47.1`, `tokenizers==0.21.4`, and `datasets==3.5.0`.
+
+Verify the installed versions:
+
+```bash
+python - <<'PY'
+import torch
+import transformers
+import tokenizers
+import datasets
+import huggingface_hub
+
+print("torch", torch.__version__)
+print("transformers", transformers.__version__)
+print("tokenizers", tokenizers.__version__)
+print("datasets", datasets.__version__)
+print("huggingface_hub", huggingface_hub.__version__)
+PY
+
+hf version
 ```
 
 ### 2. Download and Preprocess Data
@@ -128,6 +158,28 @@ bash src/data/preprocessing/get_data.sh
 ```
 
 This script downloads, harmonizes, and creates standardized folds for all datasets under `data/processed/`.
+
+For cloud runs, use the private processed-folds Hugging Face dataset instead of
+downloading and preprocessing raw EyeBench data again:
+
+```bash
+hf auth login
+bash run_commands/utils/download_processed_folds_from_hf.sh skboy/eyebench-processed-folds .
+```
+
+To download only PoTeC for `PoTeC_RC` / `PoTeC_DE` experiments:
+
+```bash
+hf download skboy/eyebench-processed-folds \
+  --repo-type dataset \
+  --local-dir . \
+  --include 'README.md' \
+  --include 'manifest_sizes.txt' \
+  --include 'manifest_files.txt' \
+  --include 'data/PoTeC/processed/*' \
+  --include 'data/PoTeC/folds/fold_*/*' \
+  --include 'data/PoTeC/folds_metadata/*/*'
+```
 
 ### 3. Log into Weights & Biases (WandB)
 
@@ -245,4 +297,3 @@ EyeBench development is supported by:
 
 All datasets included in EyeBench follow their respective original licenses.
 Code released under the [MIT License](LICENSE).
-
