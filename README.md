@@ -170,15 +170,20 @@ bash run_commands/utils/download_processed_folds_from_hf.sh skboy/eyebench-proce
 To download only PoTeC for `PoTeC_RC` / `PoTeC_DE` experiments:
 
 ```bash
-hf download skboy/eyebench-processed-folds \
-  --repo-type dataset \
-  --local-dir . \
-  --include 'README.md' \
-  --include 'manifest_sizes.txt' \
-  --include 'manifest_files.txt' \
-  --include 'data/PoTeC/processed/*' \
-  --include 'data/PoTeC/folds/fold_*/*' \
-  --include 'data/PoTeC/folds_metadata/*/*'
+bash run_commands/utils/download_processed_folds_from_hf.sh skboy/eyebench-processed-folds . PoTeC
+```
+
+The helper intentionally calls `hf download` once per include pattern. Some
+`huggingface_hub` CLI versions only honor the last repeated `--include` pattern
+when several are passed in one command.
+
+Verify the PoTeC download:
+
+```bash
+find data/PoTeC/folds -maxdepth 1 -type d -name 'fold_*' | sort
+find data/PoTeC/folds -type f | wc -l
+find data/PoTeC/processed -type f | wc -l
+find data/PoTeC/folds_metadata -type f | wc -l
 ```
 
 ### 3. Log into Weights & Biases (WandB)

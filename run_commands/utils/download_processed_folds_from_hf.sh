@@ -3,9 +3,10 @@ set -euo pipefail
 
 REPO_ID="${1:-${HF_DATASET_REPO:-}}"
 LOCAL_DIR="${2:-.}"
+DATASET_PATTERN="${3:-${HF_DATASET_NAME:-*}}"
 
 if [[ -z "$REPO_ID" ]]; then
-  echo "Usage: $0 <hf_user/eyebench-processed-folds> [local_dir]" >&2
+  echo "Usage: $0 <hf_user/eyebench-processed-folds> [local_dir] [dataset_name|*]" >&2
   echo "Or set HF_DATASET_REPO." >&2
   exit 1
 fi
@@ -15,12 +16,18 @@ if ! command -v hf >/dev/null 2>&1; then
   exit 1
 fi
 
-hf download "$REPO_ID" \
-  --repo-type dataset \
-  --local-dir "$LOCAL_DIR" \
-  --include 'README.md' \
-  --include 'manifest_sizes.txt' \
-  --include 'manifest_files.txt' \
-  --include 'data/*/processed/*' \
-  --include 'data/*/folds/fold_*/*' \
-  --include 'data/*/folds_metadata/*/*'
+INCLUDE_PATTERNS=(
+  'README.md'
+  'manifest_sizes.txt'
+  'manifest_files.txt'
+  "data/${DATASET_PATTERN}/processed/*"
+  "data/${DATASET_PATTERN}/folds/fold_*/*"
+  "data/${DATASET_PATTERN}/folds_metadata/*/*"
+)
+
+for include_pattern in "${INCLUDE_PATTERNS[@]}"; do
+  hf download "$REPO_ID" \
+    --repo-type dataset \
+    --local-dir "$LOCAL_DIR" \
+    --include "$include_pattern"
+done

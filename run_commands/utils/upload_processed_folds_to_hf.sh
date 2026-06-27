@@ -130,8 +130,10 @@ fi
   echo '```bash'
   echo "pip install -U 'huggingface_hub[hf_xet]<1.0,>=0.24.0'"
   echo "hf auth login"
-  printf "hf download %s --repo-type dataset --local-dir . \\\n  --include 'data/*/processed/*' \\\n  --include 'data/*/folds/fold_*/*' \\\n  --include 'data/*/folds_metadata/*/*'\n" "$REPO_ID"
+  printf "bash run_commands/utils/download_processed_folds_from_hf.sh %s .\n" "$REPO_ID"
   echo '```'
+  echo
+  echo "The repository helper calls the Hugging Face download command once per include pattern for compatibility with CLI versions that do not honor repeated --include flags in a single command."
 } > "$STAGING_DIR/README.md"
 
 du -sh data/*/processed data/*/folds data/*/folds_metadata 2>/dev/null | sort -k2 > "$STAGING_DIR/manifest_sizes.txt"
