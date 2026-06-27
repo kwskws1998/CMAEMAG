@@ -390,6 +390,10 @@ rsconnect/
 
 # CMAEMAG local data, training artifacts, and caches
 data/
+!/src/data/
+!/src/data/**
+src/data/**/__pycache__/
+src/data/**/*.py[cod]
 results/
 sweeps/
 outputs/
