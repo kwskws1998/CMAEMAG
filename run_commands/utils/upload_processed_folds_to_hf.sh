@@ -92,7 +92,11 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-hf repos create "$REPO_ID" --type dataset --private --exist-ok
+if hf repos create --help >/dev/null 2>&1; then
+  hf repos create "$REPO_ID" --type dataset --private --exist-ok
+else
+  hf repo create "$REPO_ID" --repo-type dataset --private --exist-ok
+fi
 
 hf upload "$REPO_ID" "$CARD_DIR/README.md" README.md \
   --repo-type dataset \
